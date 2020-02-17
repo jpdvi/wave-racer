@@ -1,7 +1,9 @@
 use super::common::Chunk;
 use super::common::ByteOrder;
 use super::common::Compile;
+use super::wave::SineWave;
 
+#[derive(Clone)]
 pub struct WaveHeader {
     chunk_id : Chunk,
     chunk_size : Chunk,
@@ -9,7 +11,7 @@ pub struct WaveHeader {
 }
 
 impl WaveHeader {
-    pub fn new () -> WaveHeader {
+    pub fn new () -> Self {
         Self {
             chunk_id : Chunk::new(Some(4), Some(0), "ChunkID",
                 ByteOrder::Big,
@@ -27,6 +29,16 @@ impl WaveHeader {
     }
 }
 
+impl Compile for WaveHeader {
+    fn compile(&mut self) -> &mut Self {
+        self.chunk_id.compile();
+        self.chunk_size.compile();
+        self.format.compile();
+        self
+    }
+}
+
+#[derive(Clone)]
 pub struct WaveFmt {
     subchunk1id : Chunk,
     subchunk1size: Chunk,
@@ -41,7 +53,7 @@ pub struct WaveFmt {
 }
 
 impl WaveFmt {
-    pub fn new() -> WaveFmt {
+    pub fn new() -> Self {
         Self {
             subchunk1id : Chunk::new(Some(4), Some(12), "Subchunk1ID",
                 ByteOrder::Big,
@@ -77,10 +89,31 @@ impl WaveFmt {
                 None),
             extra_param_size : None,
             extra_params : None,
-        }
+        }.compile().clone()
     }
 }
 
+impl Compile for WaveFmt {
+    fn compile(&mut self) -> &mut Self {
+        self.subchunk1id.compile();
+        self.subchunk1size.compile();
+        self.audio_format.compile();
+        self.sample_rate.compile();
+        self.num_channels.compile();
+        self.bits_per_sample.compile();
+        let sample_rate_raw: u32 = self.sample_rate.raw_data();
+        let num_channels_raw: u32 = self.num_channels.raw_data();
+        let bits_per_sample_raw: u32 =  self.bits_per_sample.raw_data();
+        let calculated_byte_rate = sample_rate_raw * num_channels_raw as u32 * bits_per_sample_raw / 8;
+        self.byte_rate.data = Some(calculated_byte_rate.to_string());
+        self.byte_rate.compile();
+        self.block_align.data = Some((num_channels_raw as u32 * bits_per_sample_raw / 8).to_string());
+        self.block_align.compile();
+        self
+    }
+}
+
+#[derive(Clone)]
 pub struct WaveData {
     subchunk2id : Chunk,
     subchunk2size : Chunk,
@@ -88,7 +121,7 @@ pub struct WaveData {
 }
 
 impl WaveData {
-    pub fn new() -> WaveData {
+    pub fn new() -> Self {
         Self {
             subchunk2id :  Chunk::new(Some(4), Some(36), "Subchunk2ID",
                 ByteOrder::Big,
@@ -104,5 +137,16 @@ impl WaveData {
                 None,
                 None),
         }
+    }
+
+    pub fn compile(&mut self, data: &SineWave, wave_fmt :&WaveFmt) -> &mut Self {
+        self.subchunk2id.compile();
+        self.data.data = Some(data.samples.clone().into_iter()
+            .map(|i| { format!("{} ", i.to_string()) })
+            .collect());
+        self.data.compile();
+        self.subchunk2size.byte_count = Some(self.data.bytes.as_ref().clone().unwrap().len() as u8);
+        self.subchunk2size.data = Some((wave_fmt.num_channels.raw_data() * wave_fmt.bits_per_sample.raw_data()).to_string());
+        self
     }
 }

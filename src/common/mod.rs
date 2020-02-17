@@ -1,5 +1,5 @@
 pub trait Compile {
-    fn compile(&mut self) -> Self;
+    fn compile(&mut self) -> &mut Self;
 }
 
 #[derive(Clone)]
@@ -10,12 +10,12 @@ pub enum ByteOrder {
 
 #[derive(Clone)]
 pub struct Chunk {
-    byte_count : Option<u8>,
-    offset : Option<u8>,
-    name : String,
-    byte_order :  ByteOrder,
-    data : Option<String>,
-    bytes : Option<Vec<u8>>, 
+    pub byte_count : Option<u8>,
+    pub offset : Option<u8>,
+    pub name : String,
+    pub byte_order :  ByteOrder,
+    pub data : Option<String>,
+    pub bytes : Option<Vec<u8>>, 
 }
 
 impl Chunk {
@@ -31,17 +31,21 @@ impl Chunk {
             byte_count: byte_count,
             byte_order : byte_order,
             data: data,
-            bytes : None
+            bytes : None,
         }
+    }
+   
+    pub fn raw_data(&self) -> u32 {
+        let raw : u32 = self.data.clone().unwrap().parse().unwrap();
+        return raw
     }
 }
 
 impl Compile for Chunk {
-    fn compile(&mut self) -> Chunk {
+    fn compile(&mut self) -> &mut Self {
         if let Some(i) = &self.data {
-            self.bytes = Some(self.data
-                .clone().unwrap().as_bytes().to_vec());
-        };
-        return self.clone()
+            self.bytes = Some(self.data.clone().unwrap().as_bytes().to_vec());
+        };         
+        self
     }
 }
